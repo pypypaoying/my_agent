@@ -1,0 +1,7 @@
+# 基于原第八章依赖，另加 Notebook 工具。
+-r requirements.txt
+# 配套修复脚本：scripts/ch08/repair_environment.py
+hello-agents==0.2.0
+qdrant-client==1.19.1
+jupyterlab>=4,<5
+ipykernel>=6,<8
