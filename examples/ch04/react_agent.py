@@ -1,6 +1,9 @@
+import argparse
 import os
+import re
 from my_agent.config import load_project_env
 from my_agent.llm_client import HelloAgentsLLM
+from my_agent.output import RESPONSE_STYLE, add_output_argument, debug, error, run_quietly, set_verbose
 from typing import List, Dict
 from serpapi import SerpApiClient
 from typing import Dict, Any
@@ -18,11 +21,14 @@ REACT_PROMPT_TEMPLATE = """
 
 请严格按照以下格式进行回应:
 
-Thought: 你的思考过程，用于分析问题、拆解任务和规划下一步行动。
+Thought: 用一句话说明下一步行动依据，不展开推理过程。
 Action: 你决定采取的行动，必须是以下格式之一:
 - `{{tool_name}}[{{tool_input}}]`:调用一个可用工具。
 - `Finish[最终答案]`:当你认为已经获得最终答案时。
 - 当你收集到足够的信息，能够回答用户的最终问题时，你必须在Action:字段后使用 Finish[最终答案] 来输出最终答案。
+
+Finish 内的最终答案遵循以下要求：
+{response_style}
 
 现在，请开始解决以下问题:
 Question: {question}
@@ -34,7 +40,7 @@ def search(query: str) -> str:
     一个基于SerpApi的实战网页搜索引擎工具。
     它会智能地解析搜索结果，优先返回直接答案或知识图谱信息。
     """
-    print(f"🔍 正在执行 [SerpApi] 网页搜索: {query}")
+    debug(f"搜索：{query}")
     try:
         api_key = os.getenv("SERPAPI_API_KEY")
         if not api_key:
@@ -108,7 +114,7 @@ class ReActAgent:
         self.max_steps = max_steps
 
     def run(self, question: str):
-        self.hitory=[]
+        self.history = []
         current_step = 0
 
         while current_step < self.max_steps:
@@ -117,7 +123,8 @@ class ReActAgent:
             prompt = REACT_PROMPT_TEMPLATE.format(
                 tools=tools_description,
                 question=question,
-                history=self.history
+                history=self.history,
+                response_style=RESPONSE_STYLE,
             )
             messages = [
                 {"role": "system", "content": "你是一个有能力调用外部工具的智能助手。"},
@@ -127,47 +134,50 @@ class ReActAgent:
             # 调用LLM进行思考
             response = self.llm_client.think(messages)
             if not response:
-                print("❌ LLM未返回有效响应，终止执行。")
-                break
+                return None
 
             # 解析LLM的输出
-            action_line = next((line for line in response.splitlines() if line.startswith("Action:")), None)
-            if not action_line:
-                print("❌ 未找到Action字段，终止执行。")
-                break
-
-            action_content = action_line[len("Action:"):].strip()
-            if action_content.startswith("Finish["):
-                final_answer = action_content[len("Finish["):-1]
-                print(f"✅ 最终答案: {final_answer}")
-                return final_answer
+            action_match = re.search(r"(?ms)^\s*Action:\s*(.*)", response)
+            if not action_match:
+                error("模型未返回有效行动，暂时无法完成请求。")
+                return None
+            action_content = action_match.group(1).strip()
+            finish = re.fullmatch(r"Finish\[(.*)\]", action_content, re.S)
+            if finish:
+                return finish.group(1).strip()
 
             # 解析工具调用
             if "[" in action_content and "]" in action_content:
                 tool_name, tool_input = action_content.split("[", 1)
                 tool_input = tool_input.rstrip("]")
-                tool_func = self.tool_executor.getTool(tool_name.strip())
-
-                # 调用工具并获取输出
-                tool_output = tool_func(tool_input.strip())
-                print(f"🔧 工具 '{tool_name.strip()}' 输出:\n{tool_output}")
+                try:
+                    tool_func = self.tool_executor.getTool(tool_name.strip())
+                    tool_output = run_quietly(tool_func, tool_input.strip())
+                except Exception as exc:
+                    tool_output = f"工具调用失败：{exc}"
+                debug(f"工具 {tool_name.strip()}：{tool_output}")
 
                 # 更新历史记录
                 self.history.append({"role": "assistant", "content": response})
                 self.history.append({"role": "tool", "content": f"{tool_name.strip()}[{tool_input.strip()}] -> {tool_output}"})
 
             else:
-                print("❌ Action格式不正确，终止执行。")
-                break
+                error("模型返回的行动格式无效，暂时无法完成请求。")
+                return None
 
             current_step += 1
 
-        print("❌ 达到最大步数，终止执行。")
+        error("达到最大执行步数，暂时无法完成请求。")
         return None
 
 
 # --- 客户端使用示例 ---
-if __name__ == '__main__':
+def main():
+    parser = argparse.ArgumentParser(description="ReAct 练习")
+    parser.add_argument("--question", default="你好，请帮我查询一下今天北京的天气，然后根据天气推荐一个合适的旅游景点。")
+    add_output_argument(parser)
+    args = parser.parse_args()
+    set_verbose(args.verbose)
     # 初始化LLM客户端
     llm_client = HelloAgentsLLM()
 
@@ -179,7 +189,13 @@ if __name__ == '__main__':
     agent = ReActAgent(llm_client, tool_executor)
 
     # 用户问题示例
-    user_question = "你好，请帮我查询一下今天北京的天气，然后根据天气推荐一个合适的旅游景点。"
+    user_question = args.question
 
     # 运行智能体
-    agent.run(user_question)
+    answer = agent.run(user_question)
+    if answer:
+        print(answer)
+
+
+if __name__ == '__main__':
+    main()

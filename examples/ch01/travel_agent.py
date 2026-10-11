@@ -1,6 +1,9 @@
 """第 1 章：使用天气查询与 Tavily 搜索的旅行 Agent。"""
 
+import argparse
+
 from my_agent.config import load_project_env
+from my_agent.output import RESPONSE_STYLE, add_output_argument, debug, error, set_verbose
 
 import requests
 
@@ -14,7 +17,7 @@ AGENT_SYSTEM_PROMPT = """
 # 输出格式要求:
 你的每次回复必须严格遵循以下格式，包含一对Thought和Action：
 
-Thought: [你的思考过程和下一步计划]
+Thought: [一句简要的下一步行动依据]
 Action: [你要执行的具体行动]
 
 Action的格式必须是以下之一：
@@ -28,6 +31,7 @@ Action的格式必须是以下之一：
 
 请开始吧！
 """
+AGENT_SYSTEM_PROMPT += "\nFinish 内的最终答案要求：\n" + RESPONSE_STYLE
 
 def get_weather(city: str) -> str:
     """
@@ -117,7 +121,7 @@ class OpenAICompatibleClient:
 
     def generate(self, prompt: str, system_prompt: str) -> str:
         """调用LLM API来生成回应。"""
-        print("正在调用大语言模型...")
+        debug("正在调用模型")
         try:
             messages = [
                 {'role': 'system', 'content': system_prompt},
@@ -129,17 +133,21 @@ class OpenAICompatibleClient:
                 stream=False
             )
             answer = response.choices[0].message.content
-            print("大语言模型响应成功。")
             return answer
         except Exception as e:
-            print(f"调用LLM API时发生错误: {e}")
-            return "错误:调用语言模型服务时出错。"
+            error(f"模型调用失败：{e}")
+            return None
 
 import re
 
 
 def main():
     load_project_env()
+    parser = argparse.ArgumentParser(description="旅行 Agent 练习")
+    parser.add_argument("--question", default="你好，请帮我查询一下今天北京的天气，然后根据天气推荐一个合适的旅游景点。")
+    add_output_argument(parser)
+    args = parser.parse_args()
+    set_verbose(args.verbose)
     API_KEY = os.environ["LLM_API_KEY"]
     BASE_URL = os.environ["LLM_BASE_URL"]
     MODEL_ID = os.environ["LLM_MODEL_ID"]
@@ -151,28 +159,30 @@ def main():
     )
 
     # --- 2. 初始化 ---
-    user_prompt = "你好，请帮我查询一下今天北京的天气，然后根据天气推荐一个合适的旅游景点。"
+    user_prompt = args.question
     prompt_history = [f"用户请求: {user_prompt}"]
 
-    print(f"用户输入: {user_prompt}\n" + "="*40)
+    debug(f"用户请求：{user_prompt}")
 
     # --- 3. 运行主循环 ---
     for i in range(5): # 设置最大循环次数
-        print(f"--- 循环 {i+1} ---\n")
+        debug(f"步骤 {i+1}")
 
         # 3.1. 构建Prompt
         full_prompt = "\n".join(prompt_history)
 
         # 3.2. 调用LLM进行思考
         llm_output = llm.generate(full_prompt, system_prompt=AGENT_SYSTEM_PROMPT)
+        if not llm_output:
+            return
         # 模型可能会输出多余的Thought-Action，需要截断
         match = re.search(r'(Thought:.*?Action:.*?)(?=\n\s*(?:Thought:|Action:|Observation:)|\Z)', llm_output, re.DOTALL)
         if match:
             truncated = match.group(1).strip()
             if truncated != llm_output.strip():
                 llm_output = truncated
-                print("已截断多余的 Thought-Action 对")
-        print(f"模型输出:\n{llm_output}\n")
+                debug("已截断多余的 Thought-Action 对")
+        debug(f"模型响应：\n{llm_output}")
         prompt_history.append(llm_output)
 
         # 3.3. 解析并执行行动
@@ -180,18 +190,22 @@ def main():
         if not action_match:
             observation = "错误: 未能解析到 Action 字段。请确保你的回复严格遵循 'Thought: ... Action: ...' 的格式。"
             observation_str = f"Observation: {observation}"
-            print(f"{observation_str}\n" + "="*40)
+            debug(observation_str)
             prompt_history.append(observation_str)
             continue
         action_str = action_match.group(1).strip()
 
-        if action_str.startswith("Finish"):
-            final_answer = re.match(r"Finish\[(.*)\]", action_str).group(1)
-            print(f"任务完成，最终答案: {final_answer}")
-            break
+        finish = re.fullmatch(r"Finish\[(.*)\]", action_str, re.S)
+        if finish:
+            print(finish.group(1).strip())
+            return
 
-        tool_name = re.search(r"(\w+)\(", action_str).group(1)
-        args_str = re.search(r"\((.*)\)", action_str).group(1)
+        call = re.fullmatch(r"(\w+)\((.*)\)", action_str, re.S)
+        if not call:
+            prompt_history.append("Observation: 行动格式无效，请重新输出工具调用或 Finish[答案]。")
+            debug("行动格式无效，正在重试")
+            continue
+        tool_name, args_str = call.groups()
         kwargs = dict(re.findall(r'(\w+)="([^"]*)"', args_str))
 
         if tool_name in available_tools:
@@ -201,8 +215,9 @@ def main():
 
         # 3.4. 记录观察结果
         observation_str = f"Observation: {observation}"
-        print(f"{observation_str}\n" + "="*40)
+        debug(observation_str)
         prompt_history.append(observation_str)
+    error("达到最大执行步数，暂时无法完成请求。")
 
 
 if __name__ == "__main__":

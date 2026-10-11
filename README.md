@@ -79,6 +79,21 @@ python -m jupyterlab
 
 若遇到 `ModuleNotFoundError: No module named 'my_agent'`，先确认解释器，再用同一解释器执行 `python -m pip install -e .`。Conda 列表中的环境名为空、按路径激活的方法也见上述配置说明。
 
+## 回答与运行日志
+
+Agent 默认直接显示最终答案，省略模型调用、工具参数、原始结果和重复的完成提示。简单问题优先用一至两句话，不主动扩展背景；用户要求完整代码、详细解释或逐步计算时，保留必要内容。错误与警告仍会显示。
+
+需要查看学习过程时，在旅行、ReAct、Plan-and-Solve 或第八章入口后加 `--verbose`：
+
+```powershell
+python examples/ch08/memory_rag.py --verbose
+python examples/ch04/plan_and_solve.py --question "请计算 25 * 8" --verbose
+```
+
+Notebook 将首个代码单元格的 `VERBOSE` 改为 `True`。也可通过 `.env` 中的 `AGENT_VERBOSE=1` 开启脚本的详细日志。输出控制和回答风格共用 `src/my_agent/output.py`，原始工具结果仍完整传给模型。
+
+输出回归测试无需调用外部服务：`python -m unittest discover -s tests -v`（使用已安装框架依赖的环境）。
+
 ## 每天记录与同步
 
 1. 将 [日志模板](docs/progress/_template.md) 复制为 `docs/progress/YYYY-MM-DD.md`。

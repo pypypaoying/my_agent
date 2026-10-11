@@ -3,6 +3,7 @@ from openai import OpenAI
 from typing import List, Dict
 
 from my_agent.config import load_project_env
+from my_agent.output import debug, error
 
 class HelloAgentsLLM:
     """
@@ -28,7 +29,7 @@ class HelloAgentsLLM:
         """
         调用大语言模型进行思考，并返回其响应。
         """
-        print(f"🧠 正在调用 {self.model} 模型...")
+        debug(f"调用模型：{self.model}")
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -38,17 +39,19 @@ class HelloAgentsLLM:
             )
 
             # 处理流式响应
-            print("✅ 大语言模型响应成功:")
             collected_content = []
             for chunk in response:
                 if not chunk.choices:
                     continue
                 content = chunk.choices[0].delta.content or ""
-                print(content, end="", flush=True)
                 collected_content.append(content)
-            print()  # 在流式输出结束后换行
-            return "".join(collected_content)
+            result = "".join(collected_content)
+            if not result:
+                error("模型没有返回有效回答。")
+                return None
+            debug("模型响应：\n" + result)
+            return result
 
         except Exception as e:
-            print(f"❌ 调用LLM API时发生错误: {e}")
+            error(f"模型调用失败：{e}")
             return None

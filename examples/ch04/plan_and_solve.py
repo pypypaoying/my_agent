@@ -1,6 +1,8 @@
+import argparse
 import ast
 from my_agent.llm_client import HelloAgentsLLM
 from my_agent.config import load_project_env
+from my_agent.output import RESPONSE_STYLE, add_output_argument, debug, error, set_verbose
 
 # 加载 .env 文件中的环境变量，处理文件不存在异常
 
@@ -37,6 +39,9 @@ EXECUTOR_PROMPT_TEMPLATE = """
 {current_step}
 
 请仅输出针对“当前步骤”的回答:
+如果当前步骤是最后一步，请结合已有结果直接回答原始问题，不复述计划和执行过程。
+当前步骤是否为最后一步: {is_final}
+{response_style}
 """
 
 
@@ -53,11 +58,13 @@ class Planner:
         # 为了生成计划，我们构建一个简单的消息列表
         messages = [{"role": "user", "content": prompt}]
 
-        print("--- 正在生成计划 ---")
+        debug("正在生成计划")
         # 使用流式输出来获取完整的计划
         response_text = self.llm_client.think(messages=messages) or ""
 
-        print(f"✅ 计划已生成:\n{response_text}")
+        debug(f"计划：\n{response_text}")
+        if not response_text:
+            return []
 
         # 解析LLM输出的列表字符串
         try:
@@ -65,13 +72,15 @@ class Planner:
             plan_str = response_text.split("```python")[1].split("```")[0].strip()
             # 使用ast.literal_eval来安全地执行字符串，将其转换为Python列表
             plan = ast.literal_eval(plan_str)
-            return plan if isinstance(plan, list) else []
+            if not isinstance(plan, list) or not plan or not all(isinstance(step, str) and step.strip() for step in plan):
+                raise ValueError("计划必须是非空的步骤列表")
+            return plan
         except (ValueError, SyntaxError, IndexError) as e:
-            print(f"❌ 解析计划时出错: {e}")
-            print(f"原始响应: {response_text}")
+            error(f"无法解析计划：{e}")
+            debug(f"原始响应：{response_text}")
             return []
         except Exception as e:
-            print(f"❌ 解析计划时发生未知错误: {e}")
+            error(f"生成计划失败：{e}")
             return []
 
 class Executor:
@@ -84,26 +93,31 @@ class Executor:
         """
         history = "" # 用于存储历史步骤和结果的字符串
 
-        print("\n--- 正在执行计划 ---")
+        debug("正在执行计划")
+        response_text = ""
 
         for i, step in enumerate(plan):
-            print(f"\n-> 正在执行步骤 {i+1}/{len(plan)}: {step}")
+            debug(f"步骤 {i+1}/{len(plan)}：{step}")
 
             prompt = EXECUTOR_PROMPT_TEMPLATE.format(
                 question=question,
                 plan=plan,
                 history=history if history else "无", # 如果是第一步，则历史为空
-                current_step=step
+                current_step=step,
+                is_final="是" if i == len(plan) - 1 else "否",
+                response_style=RESPONSE_STYLE,
             )
 
             messages = [{"role": "user", "content": prompt}]
 
             response_text = self.llm_client.think(messages=messages) or ""
+            if not response_text:
+                return None
 
             # 更新历史记录，为下一步做准备
             history += f"步骤 {i+1}: {step}\n结果: {response_text}\n\n"
 
-            print(f"✅ 步骤 {i+1} 已完成，结果: {response_text}")
+            debug(f"步骤结果：{response_text}")
 
         # 循环结束后，最后一步的响应就是最终答案
         final_answer = response_text
@@ -122,19 +136,22 @@ class PlanAndSolveAgent:
         plan = self.planner.plan(question)
 
         if not plan:
-            print("❌ 未能生成有效的计划，终止执行。")
             return None
 
-        print(f"\n生成的计划:\n{plan}")
+        debug(f"计划：{plan}")
 
         # 第二步：执行计划
         final_answer = self.executor.execute(question, plan)
 
-        print(f"\n✅ 最终答案: {final_answer}")
         return final_answer
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Plan-and-Solve 练习")
+    parser.add_argument("--question", help="直接传入问题；省略时交互输入")
+    add_output_argument(parser)
+    args = parser.parse_args()
+    set_verbose(args.verbose)
     # 初始化LLM客户端
     llm_client = HelloAgentsLLM()
 
@@ -142,15 +159,13 @@ def main():
     agent = PlanAndSolveAgent(llm_client)
 
     # 用户输入问题
-    question = input("请输入你想解决的问题: ")
+    question = args.question or input("问题：")
 
     # 调用solve方法解决问题
     final_answer = agent.solve(question)
 
     if final_answer:
-        print(f"\n最终答案: {final_answer}")
-    else:
-        print("\n未能得到有效的答案。")
+        print(final_answer)
 
 
 if __name__ == "__main__":

@@ -5,6 +5,7 @@ import os
 from openai import OpenAI
 
 from my_agent.config import load_project_env
+from my_agent.output import with_style
 
 
 def main():
@@ -16,7 +17,7 @@ def main():
     response = client.chat.completions.create(
         model=os.environ["LLM_MODEL_ID"],
         messages=[
-            {"role": "system", "content": "You are a helpful assistant"},
+            {"role": "system", "content": with_style("你是一个有用的助手。")},
             {"role": "user", "content": "你好，我有点伤心，你可以安慰我吗？"},
         ],
         stream=False,
