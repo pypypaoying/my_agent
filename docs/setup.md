@@ -4,6 +4,55 @@
 
 使用 Python 3.11，在仓库根目录安装 `requirements.txt`。其中 `-e .` 把 `src/my_agent/` 安装为可编辑包，移动脚本和 Notebook 后仍能导入共用模块。
 
+## 已有 Conda 环境怎么运行
+
+你现有的环境在 `D:\conda_envs\llm`，无需重新创建。先进入项目根目录：
+
+```powershell
+cd D:\graduate\my_agent
+conda activate D:\conda_envs\llm
+python -c "import sys; print(sys.executable); print(sys.version)"
+python -m pip install -e .
+python examples/ch08/memory_rag.py
+```
+
+前两项应分别是 `D:\conda_envs\llm\python.exe` 和 Python 3.11。当前环境已有框架依赖，本项目的可编辑安装已在 2026-10-11 补齐。以后换环境或克隆到另一台电脑，需要在对应环境重新安装。
+
+不想依赖终端激活状态时，可以显式指定解释器：
+
+```powershell
+& D:\conda_envs\llm\python.exe examples/ch08/memory_rag.py
+```
+
+VS Code 的 Python 解释器也请选择 `D:\conda_envs\llm\python.exe`；Notebook 选择安装了本项目的同一环境内核。
+
+## 为什么 Conda 列表里没有 llm 名称
+
+环境没有丢失。当前 `conda info --envs` 的列表中有 `D:\conda_envs\llm`，只是左侧名称列为空。原因是 `D:\conda_envs` 没有加入 Conda 的 `envs_dirs` 搜索目录；Conda 知道这个环境的完整路径，但不能通过短名称 `llm` 定位它。
+
+按完整路径激活即可。若希望列表显示 `llm`，并支持 `conda activate llm`，可自行执行一次：
+
+```powershell
+conda config --append envs_dirs D:\conda_envs
+conda info --envs
+conda activate llm
+```
+
+这会将环境所在的父目录加入用户的 Conda 配置，不会移动或重建环境。本次没有修改该全局配置。
+
+## 导入错误怎么排查
+
+`ModuleNotFoundError: No module named 'my_agent'` 表示当前解释器还没安装本项目。`src/my_agent/` 与示例文件不在同一目录，Python 不能仅靠进入仓库根目录就自动找到它。
+
+使用报错时的同一解释器安装并检查：
+
+```powershell
+& D:\conda_envs\llm\python.exe -m pip install -e .
+& D:\conda_envs\llm\python.exe -c "import my_agent; print(my_agent.__file__)"
+```
+
+输出应指向本仓库的 `src/my_agent/__init__.py`。这一步只解决项目导入；之后若出现 API、向量维度或数据库连接错误，再根据新的报错检查下面的服务配置。
+
 所有示例通过 `my_agent.config.load_project_env()` 加载根目录 `.env`，无需修改本机绝对路径。优先保留终端里已经设置的环境变量。使用统一的 `LLM_MODEL_ID`，也兼容早期配置中的 `LLM_MODEL` 和 `DEEPSEEK_API_KEY`。
 
 | 入口 | 额外配置或依赖 |

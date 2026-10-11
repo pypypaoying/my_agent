@@ -33,7 +33,21 @@ my_agent/
 
 ## 开始使用
 
-使用 Python 3.11，在项目根目录运行以下 PowerShell 命令：
+使用 Python 3.11。你已有的 Conda 环境位于 `D:\conda_envs\llm`，在 PowerShell 中直接使用：
+
+```powershell
+cd D:\graduate\my_agent
+conda activate D:\conda_envs\llm
+python -c "import sys; print(sys.executable)"
+python -m pip install -e .
+python examples/ch08/memory_rag.py
+```
+
+解释器应显示 `D:\conda_envs\llm\python.exe`。`pip install -e .` 需要在项目根目录执行，它让该环境识别新目录下的 `my_agent` 共用模块。只移动源文件不会自动安装模块；每个 Python 环境都需要各自安装一次。
+
+如果环境还没有示例依赖，安装 `requirements.txt`；第七、八章和 Notebook 使用 `requirements-framework.txt`。现有 `llm` 环境的依赖已安装，2026-10-11 已补齐本项目的可编辑安装。
+
+如果要从头创建独立环境，请先确认所用 `python` 是 3.11，再在项目根目录运行：
 
 ```powershell
 python -m venv .venv
@@ -62,6 +76,8 @@ python -m jupyterlab
 在 Notebook 中选择上述内核，并按单元格顺序执行。提交的 Notebook 清空了输出和执行编号，重新运行后可以在本地查看结果。模型调用和搜索会使用你配置的 API 服务。
 
 第八章还需要嵌入服务、Qdrant 和 Neo4j，详见 [环境配置](docs/setup.md)。
+
+若遇到 `ModuleNotFoundError: No module named 'my_agent'`，先确认解释器，再用同一解释器执行 `python -m pip install -e .`。Conda 列表中的环境名为空、按路径激活的方法也见上述配置说明。
 
 ## 每天记录与同步
 
