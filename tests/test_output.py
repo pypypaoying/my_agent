@@ -184,7 +184,7 @@ class OutputTests(unittest.TestCase):
     def test_chapter8_failed_rag_does_not_call_model(self):
         module = load_example("examples/ch08/memory_rag.py")
         stdout, stderr = StringIO(), StringIO()
-        with patch.object(module, "HelloAgentsLLM"), patch.object(module, "ToolRegistry"), patch.object(module, "MemoryTool"), patch.object(module, "RAGTool", return_value=SimpleNamespace(initialized=False)), patch.object(module, "SimpleAgent") as agent, patch("sys.argv", ["memory_rag.py"]), redirect_stdout(stdout), redirect_stderr(stderr):
+        with patch.object(module, "configure_embedding"), patch.object(module, "HelloAgentsLLM"), patch.object(module, "ToolRegistry"), patch.object(module, "MemoryTool"), patch.object(module, "RAGTool", return_value=SimpleNamespace(initialized=False)), patch.object(module, "SimpleAgent") as agent, patch("sys.argv", ["memory_rag.py"]), redirect_stdout(stdout), redirect_stderr(stderr):
             code = module.main()
         self.assertEqual(code, 1)
         agent.assert_not_called()

@@ -97,6 +97,27 @@ python examples/ch08/memory_rag.py
 
 记忆数据库、知识库和 trace 写入 `data/`。运行不同嵌入模型时，应确认已有集合的维度是否匹配。
 
+### 阿里云与 Hugging Face 的代理冲突
+
+`text-embedding-v3` 是阿里云 API 模型，不需要从 Hugging Face 下载。旧框架会在阿里云调用失败后静默尝试本地模型，并误把这个名称交给 Hugging Face；此时下载超时会掩盖最初的接口错误。
+
+本项目的第八章入口先调用 `my_agent.embedding.configure_embedding()`：按 `EMBED_MODEL_TYPE` 初始化共享模型，失败时显示真实原因并停止，不自动切换模型或向量维度。新增第八章脚本也应在创建 `MemoryTool` / `RAGTool` 前调用它。
+
+阿里云嵌入域名默认加入当前 Python 进程的 `NO_PROXY`，其他域名保留原有代理。可以在 `.env` 中明确设置：
+
+```dotenv
+EMBED_MODEL_TYPE=dashscope
+EMBED_MODEL_NAME=text-embedding-v3
+EMBED_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+EMBED_PROXY_MODE=direct
+```
+
+开启代理后，先运行 `python scripts/ch08/check_embedding.py`；显示维度 1024 后，再运行 `python examples/ch08/memory.py` 或 `python examples/ch08/memory_rag.py`。若希望嵌入也走原代理，改为 `EMBED_PROXY_MODE=system`，然后重新启动脚本或 Notebook 内核。
+
+`NO_PROXY` 可绕过 Requests 使用的系统或环境代理，不能改变 TUN 的路由。若代理软件开启 TUN 或强制全局路由，还需在其规则中将 `dashscope.aliyuncs.com` 设为 `DIRECT`，Hugging Face 继续走代理。此设置不修改 Windows 全局代理。
+
+参考：[Requests 代理配置](https://requests.readthedocs.io/en/stable/user/advanced/#proxies)、[阿里云文本嵌入 API](https://www.alibabacloud.com/help/en/model-studio/text-embedding-synchronous-api)。
+
 ## Notebook
 
 使用安装过本项目与框架依赖的同一 Python 内核，按顺序运行单元格。仓库里的 Notebook 清空执行输出，以减少无关变更和意外上传敏感信息；实际运行结论应填写到每日学习日志。

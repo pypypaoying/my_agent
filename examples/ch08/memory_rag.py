@@ -4,6 +4,7 @@ import argparse
 import os
 
 from my_agent.config import DATA_DIR, load_project_env
+from my_agent.embedding import configure_embedding
 from my_agent.output import add_output_argument, error, framework_output, set_verbose, with_style
 
 # 框架导入时可能读取服务配置，先加载根目录 .env。
@@ -15,6 +16,7 @@ with framework_output():
 
 
 def build_agent():
+    configure_embedding()
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     os.chdir(DATA_DIR)
     # 创建LLM实例

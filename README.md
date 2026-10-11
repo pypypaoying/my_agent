@@ -11,7 +11,7 @@ my_agent/
 ├── examples/                 # 按教材章节整理的可运行脚本
 │   ├── ch01/travel_agent.py  # 天气查询与景点推荐
 │   ├── ch04/                # 模型调用、ReAct、Plan-and-Solve
-│   └── ch08/memory_rag.py    # 记忆与知识检索示例
+│   └── ch08/                # 记忆与知识检索示例
 ├── notebooks/               # 交互式学习与实验
 │   ├── ch04/reflection.ipynb
 │   └── ch07/                # 框架入门、SimpleAgent、ReActAgent
@@ -76,6 +76,8 @@ python -m jupyterlab
 在 Notebook 中选择上述内核，并按单元格顺序执行。提交的 Notebook 清空了输出和执行编号，重新运行后可以在本地查看结果。模型调用和搜索会使用你配置的 API 服务。
 
 第八章还需要嵌入服务、Qdrant 和 Neo4j，详见 [环境配置](docs/setup.md)。
+
+使用阿里云嵌入时，第八章入口默认仅让嵌入域名直连，Hugging Face 保留代理；接口失败会直接报错，不再误下载 `text-embedding-v3`。先运行 `python scripts/ch08/check_embedding.py` 验证连接，代理/TUN 设置见上述说明。
 
 若遇到 `ModuleNotFoundError: No module named 'my_agent'`，先确认解释器，再用同一解释器执行 `python -m pip install -e .`。Conda 列表中的环境名为空、按路径激活的方法也见上述配置说明。
 

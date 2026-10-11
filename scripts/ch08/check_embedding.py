@@ -3,6 +3,7 @@ import argparse
 import os
 from dotenv import dotenv_values
 from my_agent.config import PROJECT_ROOT, load_project_env
+from my_agent.embedding import configure_embedding
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--fix-config', action='store_true')
@@ -27,7 +28,6 @@ if args.fix_config:
             handle.write(''.join(lines))
         print('已修正 EMBED_BASE_URL，其他配置保持原值', flush=True)
 load_project_env()
-from hello_agents.memory.embedding import create_embedding_model
 backend = os.getenv('EMBED_MODEL_TYPE', 'dashscope')
 if backend != 'dashscope':
     raise RuntimeError('此检查针对当前配置的 dashscope 嵌入服务')
@@ -36,10 +36,7 @@ url = os.getenv('EMBED_BASE_URL')
 print(f'配置文件: {env_path}', flush=True)
 print(f'模型: {model}; Base URL: {url}', flush=True)
 try:
-    embedder = create_embedding_model(
-        'dashscope', model_name=model,
-        api_key=os.getenv('EMBED_API_KEY'), base_url=url,
-    )
+    embedder = configure_embedding()
     print(f'嵌入接口正常，向量维度: {embedder.dimension}', flush=True)
 except Exception as exc:
     message = str(exc)
