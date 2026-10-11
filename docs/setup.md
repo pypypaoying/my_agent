@@ -77,6 +77,8 @@ python scripts/ch08/repair_environment.py
 
 修复工具会修改当前 Python 环境中 `hello_agents/memory/storage/qdrant_store.py`，首次修改前保存 `.py.ch8.bak`。重装框架后需要重新运行。它是原练习环境的兼容补丁，后续升级依赖应重新验证。
 
+补丁同时处理搜索 API 和集合统计：新版 `CollectionInfo` 不再包含 `vectors_count`，读取缺失字段时返回 `None`，保留 `points_count` 等有效统计，不将未知数量当成零。遇到旧进程仍引用此字段时，运行修复脚本后重新启动程序或 Notebook 内核。参见 [Qdrant 字段移除说明](https://github.com/qdrant/qdrant/releases/tag/v1.9.0)。
+
 在 `.env` 中配置：
 
 - LLM 服务的模型、地址与密钥。
